@@ -68,12 +68,19 @@ Setting up AWS DataSync for cross-account migrations is complex and error-prone.
 
 ## 📦 Prerequisites
 
-- **Python 3.8+**
+- **Python 3.8+** (Windows, macOS, or Linux)
 - **AWS CLI** configured with profiles for both accounts
 - **IAM Permissions:**
   - Source account: IAM role creation, S3 bucket policy management
   - Target account: S3 bucket policy management
 - **AWS DataSync** - Available in your region
+
+### Cross-Platform Support
+
+✅ **Fully compatible** with Windows, macOS, and Linux  
+✅ Pure Python implementation - no platform-specific dependencies  
+✅ Cross-platform file paths using `pathlib`  
+✅ Universal restore script in Python (no bash required)
 
 ---
 
@@ -263,7 +270,7 @@ Before any changes, creates timestamped backups:
 ~/Downloads/backups/mig1-20251030-134521/
 ├── source-bucket-policy.json    # Complete backup
 ├── dest-bucket-policy.json      # Complete backup
-└── restore.sh                   # One-click restore
+└── restore.py                   # Cross-platform restore script
 ```
 
 ### Policy Merging (Never Replaces)
@@ -283,9 +290,16 @@ Before any changes, creates timestamped backups:
 
 ### Restore from Backup
 
+**Windows:**
+```cmd
+cd %USERPROFILE%\Downloads\backups\<timestamp>
+python restore.py
+```
+
+**macOS/Linux:**
 ```bash
 cd ~/Downloads/backups/<timestamp>
-./restore.sh
+python restore.py
 ```
 
 ### Automatic Rollback

@@ -111,18 +111,65 @@ def backup_policies(
             if err.response["Error"]["Code"] == "NoSuchBucketPolicy":
                 log.info(f"No {typ} bucket policy to backup")
 
-    (backup_dir / "restore.sh").write_text(
-        f"""#!/bin/bash
-set -e
-[ -f source-bucket-policy.json ] && aws s3api put-bucket-policy --bucket {src_bucket} \\
-  --policy file://source-bucket-policy.json --profile {src_prof}
-[ -f dest-bucket-policy.json ] && aws s3api put-bucket-policy --bucket {dst_bucket} \\
-  --policy file://dest-bucket-policy.json --profile {tgt_prof}
-echo "✓ Restored"
+    # Create cross-platform Python restore script
+    (backup_dir / "restore.py").write_text(
+        f'''#!/usr/bin/env python3
 """
+Cross-platform restore script for bucket policies.
+Works on Windows, macOS, and Linux.
+"""
+import json
+import sys
+from pathlib import Path
+
+import boto3
+
+def restore_policies():
+    """Restore bucket policies from backup files."""
+    backup_dir = Path(__file__).parent
+    
+    # Source bucket policy
+    source_policy_file = backup_dir / "source-bucket-policy.json"
+    if source_policy_file.exists():
+        print(f"Restoring source bucket policy for {src_bucket}...")
+        with open(source_policy_file, encoding="utf-8") as f:
+            policy = f.read()
+        
+        session = boto3.Session(profile_name="{src_prof}")
+        s3 = session.client("s3")
+        s3.put_bucket_policy(Bucket="{src_bucket}", Policy=policy)
+        print(f"✓ Restored source bucket policy for {src_bucket}")
+    else:
+        print(f"No source bucket policy backup found")
+    
+    # Destination bucket policy
+    dest_policy_file = backup_dir / "dest-bucket-policy.json"
+    if dest_policy_file.exists():
+        print(f"Restoring destination bucket policy for {dst_bucket}...")
+        with open(dest_policy_file, encoding="utf-8") as f:
+            policy = f.read()
+        
+        session = boto3.Session(profile_name="{tgt_prof}")
+        s3 = session.client("s3")
+        s3.put_bucket_policy(Bucket="{dst_bucket}", Policy=policy)
+        print(f"✓ Restored destination bucket policy for {dst_bucket}")
+    else:
+        print(f"No destination bucket policy backup found")
+    
+    print("\\n✓ Restore complete!")
+
+if __name__ == "__main__":
+    try:
+        restore_policies()
+        sys.exit(0)
+    except Exception as e:
+        print(f"\\n❌ Restore failed: {{e}}")
+        sys.exit(1)
+'''
     )
-    (backup_dir / "restore.sh").chmod(0o755)
-    log.success(f"Created restore: {backup_dir}/restore.sh")
+    if sys.platform != "win32":
+        (backup_dir / "restore.py").chmod(0o755)
+    log.success(f"Created restore: {backup_dir}/restore.py")
 
 
 # ============================================
