@@ -1,0 +1,91 @@
+# DataSync Setup Configuration Example
+# Complete reference with all available options
+
+# AWS CLI profiles for source and target accounts
+profiles:
+  source: my-source-profile         # Source account AWS CLI profile
+  target: my-target-profile         # Target account AWS CLI profile
+
+# AWS region where both buckets exist (must be same region)
+aws_region: us-west-2
+
+# IAM role and policy names (created in source account)
+datasync_role_name: DataSyncS3MigrationRole
+iam_policy_name: DataSyncS3MigrationPolicy
+
+# Optional: Custom backup directory (default: ~/Downloads/backups)
+# backup_dir: /path/to/custom/backups
+
+# List of bucket migrations
+migrations:
+  # Example 1: Simple migration with defaults
+  - source_bucket: my-source-bucket-1
+    destination_bucket: my-dest-bucket-1
+  
+  # Example 2: Enhanced mode with no verification (fastest)
+  - source_bucket: my-source-bucket-2
+    destination_bucket: my-dest-bucket-2
+    options:
+      TaskMode: ENHANCED              # Recommended: faster, no quotas
+      TransferMode: CHANGED           # Only transfer new/modified files
+      VerifyMode: NONE                # No verification (fastest)
+      OverwriteMode: ALWAYS           # Overwrite existing files
+      LogLevel: TRANSFER              # Log transfer details
+  
+  # Example 3: Complete sync with verification
+  - source_bucket: my-source-bucket-3
+    destination_bucket: my-dest-bucket-3
+    options:
+      TaskMode: ENHANCED
+      TransferMode: ALL               # Transfer all files (not just changes)
+      VerifyMode: POINT_IN_TIME_CONSISTENT  # Verify all files match
+      OverwriteMode: ALWAYS
+      PreserveDeletedFiles: REMOVE    # Delete files not in source
+      LogLevel: TRANSFER
+  
+  # Example 4: Basic mode with bandwidth limit
+  - source_bucket: my-source-bucket-4
+    destination_bucket: my-dest-bucket-4
+    options:
+      TaskMode: BASIC                 # Basic mode (has quotas)
+      TransferMode: CHANGED
+      VerifyMode: ONLY_FILES_TRANSFERRED  # Verify only transferred files
+      OverwriteMode: NEVER            # Don't overwrite existing files
+      BytesPerSecond: 104857600       # Limit to 100 MB/s
+      LogLevel: BASIC
+
+# Available Options Reference:
+#
+# TaskMode:
+#   - ENHANCED: Recommended - faster, no quotas, parallel processing
+#   - BASIC: Sequential processing, subject to quotas
+#
+# TransferMode:
+#   - CHANGED: Only transfer new/modified files (default)
+#   - ALL: Transfer all files regardless of state
+#
+# VerifyMode:
+#   - NONE: No verification (fastest)
+#   - ONLY_FILES_TRANSFERRED: Verify only files transferred in this run
+#   - POINT_IN_TIME_CONSISTENT: Verify all files match
+#
+# OverwriteMode:
+#   - ALWAYS: Overwrite existing files (default)
+#   - NEVER: Skip files that already exist
+#
+# PreserveDeletedFiles:
+#   - PRESERVE: Keep deleted files in destination (default)
+#   - REMOVE: Delete files not in source
+#
+# PreserveDevices:
+#   - NONE: Don't preserve device files (default)
+#   - PRESERVE: Preserve device files
+#
+# LogLevel:
+#   - TRANSFER: Log all transfers (default)
+#   - BASIC: Log errors and warnings only
+#   - OFF: No logging
+#
+# BytesPerSecond: (optional)
+#   - Integer: Bandwidth limit in bytes per second
+#   - Example: 104857600 = 100 MB/s
