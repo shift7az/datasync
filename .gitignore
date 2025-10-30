@@ -1,2 +1,12 @@
 # VS Code workspace files
 datasync.code-workspace
+
+# Python virtual environment
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Test files
+test-config.yaml
