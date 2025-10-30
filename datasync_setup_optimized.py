@@ -14,7 +14,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Dict, List, Tuple
 
 import boto3
 import yaml
@@ -57,7 +57,7 @@ def get_logger(verbose: bool) -> logging.Logger:
 # ============================================
 def load_config(path: Path) -> Dict:
     """Load and validate YAML config. Requires: profiles, aws_region, role/policy names, migrations."""
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
     req = [
         "profiles.source",
@@ -107,8 +107,8 @@ def backup_policies(
                 json.dumps(json.loads(pol["Policy"]), indent=2)
             )
             log.success(f"Backed up {typ} bucket policy")
-        except ClientError as e:
-            if e.response["Error"]["Code"] == "NoSuchBucketPolicy":
+        except ClientError as err:
+            if err.response["Error"]["Code"] == "NoSuchBucketPolicy":
                 log.info(f"No {typ} bucket policy to backup")
 
     (backup_dir / "restore.sh").write_text(
@@ -147,10 +147,10 @@ def setup_iam(
 
     try:
         iam.get_role(RoleName=role_name)
-        log.success(f"IAM role exists - reusing without modification")
+        log.success("IAM role exists - reusing without modification")
         return role_arn, False
-    except ClientError as e:
-        if e.response["Error"]["Code"] != "NoSuchEntity":
+    except ClientError as err:
+        if err.response["Error"]["Code"] != "NoSuchEntity":
             raise
 
     if dry_run:
@@ -280,13 +280,12 @@ def update_policy(s3, bucket: str, role_arn: str, log, dry_run: bool) -> None:
     # Get existing bucket policy, or create empty policy if none exists
     try:
         pol = json.loads(s3.get_bucket_policy(Bucket=bucket)["Policy"])
-    except ClientError as e:
+    except ClientError as err:
         # If no policy exists, start with empty policy structure
-        pol = (
-            {"Version": "2012-10-17", "Statement": []}
-            if e.response["Error"]["Code"] == "NoSuchBucketPolicy"
-            else (_ for _ in ()).throw(e)
-        )
+        if err.response["Error"]["Code"] == "NoSuchBucketPolicy":
+            pol = {"Version": "2012-10-17", "Statement": []}
+        else:
+            raise
 
     # CRITICAL SAFETY STEP: Merge policies instead of replacing
     # Filter out old DataSync statements (by Sid) to avoid duplicates
@@ -309,8 +308,8 @@ def retry_with_backoff(func, max_retries: int = 3, backoff: float = 2.0, log=Non
     for attempt in range(max_retries):
         try:
             return func()
-        except ClientError as e:
-            code = e.response["Error"]["Code"]
+        except ClientError as err:
+            code = err.response["Error"]["Code"]
             # Retry only on rate limiting errors
             if code in ["Throttling", "RequestLimitExceeded", "TooManyRequestsException"]:
                 if attempt < max_retries - 1:
@@ -330,14 +329,14 @@ def verify_bucket_access(s3, bucket: str, log) -> bool:
     try:
         s3.head_bucket(Bucket=bucket)
         return True
-    except ClientError as e:
-        code = e.response["Error"]["Code"]
+    except ClientError as err:
+        code = err.response["Error"]["Code"]
         if code == "404":
             log.error(f"Bucket '{bucket}' does not exist")
         elif code == "403":
             log.error(f"Access denied to bucket '{bucket}'")
         else:
-            log.error(f"Cannot access bucket '{bucket}': {e}")
+            log.error(f"Cannot access bucket '{bucket}': {err}")
         return False
 
 
@@ -406,7 +405,7 @@ def create_datasync(ds, src: str, dst: str, role_arn: str, opts: Dict, log, dry_
         log.success(f"Task: {task_arn}")
         return task_arn
 
-    except Exception as e:
+    except Exception:
         # AUTOMATIC ROLLBACK: Clean up any resources created before failure
         if created_resources:
             log.warning(
@@ -462,7 +461,7 @@ def main():
         dst_buckets = [m["destination_bucket"] for m in migrations]
 
         log.info("Setting up IAM role...")
-        role_arn, created = setup_iam(
+        role_arn, _ = setup_iam(
             iam,
             cfg["datasync_role_name"],
             cfg["iam_policy_name"],
@@ -557,8 +556,8 @@ def main():
     except KeyboardInterrupt:
         log.warning("\n⚠️  Cancelled by user")
         sys.exit(1)
-    except Exception as e:
-        log.error(f"\n❌ Failed: {e}")
+    except Exception as err:
+        log.error(f"\n❌ Failed: {err}")
         if args.verbose:
             import traceback
 
